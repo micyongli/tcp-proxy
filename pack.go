@@ -511,7 +511,7 @@ func BuildTargetConnect() *TargetConnect {
 	return t
 }
 
-func (p *TargetConnect) From(target string, targetPack *TargetPack) (*net.Conn, error) {
+func (p *TargetConnect) NewConnect(target string, targetPack *TargetPack) (*net.Conn, error) {
 	p.connMutex.Lock()
 	defer p.connMutex.Unlock()
 	t := p.Conn[targetPack.NetAddr()]
@@ -672,20 +672,22 @@ func OutLocal(target string, remote string) {
 							return
 						}
 						proc.Put(buf[:n])
-						r := proc.Parse()
-						if r == nil {
-							continue
-						}
-						if r.Action == ActionError {
-							cli := GlobalClientConnect.UnReg(r.NetAddr())
-							if cli != nil {
-								(*cli).Close()
+						for {
+							r := proc.Parse()
+							if r == nil {
+								break
 							}
-
-						} else {
-							c, e := GlobalClientConnect.From(target, r)
-							if e != nil {
+							if r.Action == ActionError {
+								cli := GlobalClientConnect.UnReg(r.NetAddr())
+								if cli != nil {
+									(*cli).Close()
+								}
 								continue
+
+							}
+							c, e := GlobalClientConnect.NewConnect(target, r)
+							if e != nil {
+								break
 							}
 							if c != nil {
 								tryConnectTarget(r.NetAddr(), *c, r.NetAddr())
@@ -693,9 +695,7 @@ func OutLocal(target string, remote string) {
 							if GlobalClientRouter.GetLinker() {
 								GlobalClientRouter.QueueList.Writer.Product(BuildQueueNode(r))
 							}
-
 						}
-
 					}
 				}
 			}()
